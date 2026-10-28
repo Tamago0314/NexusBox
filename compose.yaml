@@ -1,0 +1,34 @@
+# 起動: docker compose up -d --build
+#
+# ENGINE のポートはホストに公開していない (compose 内部ネットワークからのみ到達可能)。
+
+services:
+  # entrypoint / command は上書きしない。
+  # イメージの entrypoint.sh は「渡された引数をコマンドとして exec する」作りなので、
+  # command を書くなら gosu を含む完全なコマンドが必要になる。既定のままが安全。
+  voicevox:
+    image: voicevox/voicevox_engine:cpu-ubuntu24.04-latest
+    restart: unless-stopped
+    # ユーザー辞書 / 設定ファイルの保存先 (platformdirs の user_data_dir)。
+    # ENGINE は uid 1000 (user) で動くので、ホスト側を先に所有者変更しておくこと:
+    #   mkdir -p data/voicevox && sudo chown -R 1000:1000 data/voicevox
+    volumes:
+      - ./data/voicevox:/home/user/.local/share/voicevox-engine
+    healthcheck:
+      # 追加パッケージ無しで済ませるため bash の /dev/tcp で TCP 疎通だけ見る
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/50021'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  bot:
+    build: .
+    image: nexusbox:latest
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      voicevox:
+        condition: service_healthy
+    restart: unless-stopped

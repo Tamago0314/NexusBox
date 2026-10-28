@@ -1,0 +1,2 @@
+# サーバー (Linux) で動かすので、改行コードは常に LF にそろえる
+* text=auto eol=lf
